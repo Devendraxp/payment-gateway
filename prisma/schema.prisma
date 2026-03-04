@@ -1,0 +1,193 @@
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NETBANKING
+  WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  PENDING_VERIFICATION
+}
+
+enum AttemptStatus {
+  SUCCESS
+  FAILED
+  TIMEOUT
+}
+
+enum ErrorType {
+  RETRYABLE
+  NON_RETRYABLE
+  TIMEOUT
+}
+
+enum ExperimentStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
+  COMPLETED
+}
+
+enum ExperimentVariant {
+  CONTROL
+  TREATMENT
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  idempotency_key String        @unique
+  merchant_id     String
+  customer_id     String
+  amount_minor    Int
+  currency        String
+  payment_method  PaymentMethod
+  instrument      Json
+  status          PaymentStatus
+  final_gateway   String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  payment_attempts  PaymentAttempt[]
+  routing_decisions RoutingDecision[]
+
+  @@map("payments")
+}
+
+model PaymentAttempt {
+  id             String        @id @default(uuid())
+  payment_id     String
+  gateway_name   String
+  attempt_number Int
+  status         AttemptStatus
+  error_code     String?
+  error_type     ErrorType?
+  latency_ms     Int?
+  gateway_txn_id String?
+  created_at     DateTime      @default(now())
+
+  payment Payment @relation(fields: [payment_id], references: [id])
+
+  @@map("payment_attempts")
+}
+
+model RoutingDecision {
+  id              String   @id @default(uuid())
+  payment_id      String
+  scored_gateways Json
+  experiment_id   String?
+  variant         String?
+  bandit_used     Boolean
+  final_gateway   String
+  created_at      DateTime @default(now())
+
+  payment Payment @relation(fields: [payment_id], references: [id])
+
+  @@map("routing_decisions")
+}
+
+model Gateway {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  display_name      String
+  is_active         Boolean
+  success_rate      Float
+  base_latency_ms   Int
+  supported_methods Json
+  method_affinity   Json
+  bank_affinity     Json
+  created_at        DateTime @default(now())
+
+  @@map("gateways")
+}
+
+model GatewayMetric {
+  id             String   @id @default(uuid())
+  gateway_name   String
+  payment_method String
+  window_minutes Int
+  success_count  Int
+  failure_count  Int
+  timeout_count  Int
+  total_count    Int
+  p50_latency_ms Float
+  p95_latency_ms Float
+  p99_latency_ms Float
+  window_start   DateTime
+  window_end     DateTime
+  updated_at     DateTime @updatedAt
+
+  @@map("gateway_metrics")
+}
+
+model RetryPolicy {
+  id                String   @id @default(uuid())
+  merchant_id       String   @unique
+  max_attempts      Int      @default(3)
+  latency_budget_ms Int      @default(10000)
+  retry_on_timeout  Boolean  @default(false)
+  enabled           Boolean
+  updated_at        DateTime @updatedAt
+
+  @@map("retry_policies")
+}
+
+model Experiment {
+  id               String           @id @default(uuid())
+  name             String
+  status           ExperimentStatus
+  control_weight   Float
+  treatment_weight Float
+  treatment_config Json
+  start_at         DateTime
+  end_at           DateTime?
+  created_at       DateTime         @default(now())
+
+  experiment_assignments ExperimentAssignment[]
+
+  @@map("experiments")
+}
+
+model ExperimentAssignment {
+  id            String            @id @default(uuid())
+  experiment_id String
+  customer_id   String
+  variant       ExperimentVariant
+  created_at    DateTime          @default(now())
+
+  experiment Experiment @relation(fields: [experiment_id], references: [id])
+
+  @@unique([experiment_id, customer_id])
+  @@map("experiment_assignments")
+}
+
+model OutboxEvent {
+  id           String       @id @default(uuid())
+  aggregate_id String
+  event_type   String
+  payload      Json
+  status       OutboxStatus
+  published_at DateTime?
+  created_at   DateTime     @default(now())
+
+  @@map("outbox_events")
+}
