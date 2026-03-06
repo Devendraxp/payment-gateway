@@ -2,6 +2,7 @@ import { Injectable, ConflictException, InternalServerErrorException, NotFoundEx
 import { CreateGatewayDto } from './dto/create-gateway.dto';
 import { UpdateGatewayDto } from './dto/update-gateway.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Gateway } from 'src/generated/prisma/browser';
 
 @Injectable()
 export class GatewaysService {
@@ -49,6 +50,9 @@ export class GatewaysService {
     } catch (error) {
       throw new InternalServerErrorException('Failed to fetch gateways');
     }
+  }
+  async findAllActive(): Promise<Gateway[]> {
+    return this.prisma.gateway.findMany({ where: { is_active: true } });
   }
 
   findOne(id: string) {
