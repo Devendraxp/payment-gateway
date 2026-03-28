@@ -1,0 +1,30 @@
+@server = http://localhost:3000
+@payment_id = 73c060f0-877e-4bec-b54e-b5f5032572bb
+POST {{server}}/payments
+Content-Type: application/json
+
+{
+  "idempotency_key": "abc123",
+  "merchant_id": "merchant_001",
+  "customer_id": "customer_001",
+  "amount_minor": 1000,
+  "currency": "USD",
+  "payment_method": "CARD",
+  "instrument": {
+    "card_number": "4111111111111111",
+    "expiry_month": "12",
+    "expiry_year": "2025",
+    "cvv": "123"
+  }
+}
+
+###
+
+GET {{server}}/payments
+
+###
+
+GET {{server}}/payments/{{payment_id}}
+
+###
+GET {{server}}/payments/{{payment_id}}/routing-decision
